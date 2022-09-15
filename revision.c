@@ -1861,8 +1861,8 @@ static void add_parents(struct rev_info *revs, struct commit_list *parents,
 		add_parent(revs, &parents->item->object, arg, flags);
 }
 
-static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
-			    int exclude_parent)
+static int add_nth_parent(struct rev_info *revs, const char *arg_, int flags,
+			  int exclude_parent)
 {
 	struct commit *commit = get_commit(revs, arg_);
 	struct commit_list *parents;
@@ -1870,10 +1870,6 @@ static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
 
 	if (!commit)
 		return 0;
-	if (!exclude_parent) {
-		add_parents(revs, commit->parents, arg_, flags);
-		return 1;
-	}
 	for (parents = commit->parents, parent_number = 1;
 	     parents;
 	     parents = parents->next, parent_number++) {
@@ -2120,15 +2116,26 @@ static int handle_revision_arg_1(const char *arg_, struct rev_info *revs, int fl
 
 	mark = strstr(arg, "^@");
 	if (mark && !mark[2]) {
+		struct commit *commit;
+
 		*mark = 0;
-		if (add_parents_only(revs, arg, flags, 0))
+		commit = get_commit(revs, arg);
+		if (commit) {
+			add_parents(revs, commit->parents, arg, flags);
 			return 0;
+		}
 		*mark = '^';
 	}
 	mark = strstr(arg, "^!");
 	if (mark && !mark[2]) {
+		struct commit *commit;
+
 		*mark = 0;
-		if (!add_parents_only(revs, arg, flags ^ (UNINTERESTING | BOTTOM), 0))
+		commit = get_commit(revs, arg);
+		if (commit)
+			add_parents(revs, commit->parents, arg,
+				    flags ^ (UNINTERESTING | BOTTOM));
+		else
 			*mark = '^';
 	}
 	mark = strstr(arg, "^-");
@@ -2142,7 +2149,7 @@ static int handle_revision_arg_1(const char *arg_, struct rev_info *revs, int fl
 		}
 
 		*mark = 0;
-		if (!add_parents_only(revs, arg, flags ^ (UNINTERESTING | BOTTOM), exclude_parent))
+		if (!add_nth_parent(revs, arg, flags ^ (UNINTERESTING | BOTTOM), exclude_parent))
 			*mark = '^';
 	}
 
