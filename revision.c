@@ -2100,6 +2100,7 @@ static int handle_revision_arg_1(const char *arg_, struct rev_info *revs, int fl
 	const char *arg = arg_;
 	int cant_be_filename = revarg_opt & REVARG_CANNOT_BE_FILENAME;
 	unsigned get_sha1_flags = GET_OID_RECORD_PATH;
+	struct commit *caret_bang_commit = NULL;
 
 	flags = flags & UNINTERESTING ? flags | BOTTOM : flags & ~BOTTOM;
 
@@ -2128,14 +2129,9 @@ static int handle_revision_arg_1(const char *arg_, struct rev_info *revs, int fl
 	}
 	mark = strstr(arg, "^!");
 	if (mark && !mark[2]) {
-		struct commit *commit;
-
 		*mark = 0;
-		commit = get_commit(revs, arg);
-		if (commit)
-			add_parents(revs, commit->parents, arg,
-				    flags ^ (UNINTERESTING | BOTTOM));
-		else
+		caret_bang_commit = get_commit(revs, arg);
+		if (!caret_bang_commit)
 			*mark = '^';
 	}
 	mark = strstr(arg, "^-");
@@ -2172,6 +2168,9 @@ static int handle_revision_arg_1(const char *arg_, struct rev_info *revs, int fl
 	add_rev_cmdline(revs, object, arg_, REV_CMD_REV, flags ^ local_flags);
 	add_pending_object_with_path(revs, object, arg, oc.mode, oc.path);
 	free(oc.path);
+	if (caret_bang_commit)
+		add_parents(revs, caret_bang_commit->parents, arg,
+			    flags ^ (UNINTERESTING | BOTTOM));
 	return 0;
 }
 
