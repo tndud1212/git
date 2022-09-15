@@ -1815,12 +1815,36 @@ static void add_alternate_refs_to_pending(struct rev_info *revs,
 	for_each_alternate_ref(add_one_alternate_ref, &data);
 }
 
-static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
-			    int exclude_parent)
+static struct commit *get_commit(struct rev_info *revs, const char *arg_)
 {
 	struct object_id oid;
 	struct object *it;
-	struct commit *commit;
+	const char *arg = arg_;
+
+	if (*arg == '^')
+		arg++;
+	if (get_oid_committish(arg, &oid))
+		return NULL;
+	while (1) {
+		it = get_reference(revs, arg, &oid, 0);
+		if (!it && revs->ignore_missing)
+			return NULL;
+		if (it->type != OBJ_TAG)
+			break;
+		if (!((struct tag*)it)->tagged)
+			return NULL;
+		oidcpy(&oid, &((struct tag*)it)->tagged->oid);
+	}
+	if (it->type != OBJ_COMMIT)
+		return NULL;
+	return (struct commit *)it;
+}
+
+static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
+			    int exclude_parent)
+{
+	struct object *it;
+	struct commit *commit = get_commit(revs, arg_);
 	struct commit_list *parents;
 	int parent_number;
 	const char *arg = arg_;
@@ -1829,21 +1853,8 @@ static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
 		flags ^= UNINTERESTING | BOTTOM;
 		arg++;
 	}
-	if (get_oid_committish(arg, &oid))
+	if (!commit)
 		return 0;
-	while (1) {
-		it = get_reference(revs, arg, &oid, 0);
-		if (!it && revs->ignore_missing)
-			return 0;
-		if (it->type != OBJ_TAG)
-			break;
-		if (!((struct tag*)it)->tagged)
-			return 0;
-		oidcpy(&oid, &((struct tag*)it)->tagged->oid);
-	}
-	if (it->type != OBJ_COMMIT)
-		return 0;
-	commit = (struct commit *)it;
 	if (exclude_parent &&
 	    exclude_parent > commit_list_count(commit->parents))
 		return 0;
