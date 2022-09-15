@@ -1854,6 +1854,13 @@ static void add_parent(struct rev_info *revs, struct object *parent,
 	add_pending_object(revs, parent, arg);
 }
 
+static void add_parents(struct rev_info *revs, struct commit_list *parents,
+			const char *arg, int flags)
+{
+	for (; parents; parents = parents->next)
+		add_parent(revs, &parents->item->object, arg, flags);
+}
+
 static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
 			    int exclude_parent)
 {
@@ -1863,18 +1870,19 @@ static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
 
 	if (!commit)
 		return 0;
-	if (exclude_parent &&
-	    exclude_parent > commit_list_count(commit->parents))
-		return 0;
+	if (!exclude_parent) {
+		add_parents(revs, commit->parents, arg_, flags);
+		return 1;
+	}
 	for (parents = commit->parents, parent_number = 1;
 	     parents;
 	     parents = parents->next, parent_number++) {
-		if (exclude_parent && parent_number != exclude_parent)
-			continue;
-
-		add_parent(revs, &parents->item->object, arg_, flags);
+		if (parent_number == exclude_parent) {
+			add_parent(revs, &parents->item->object, arg_, flags);
+			return 1;
+		}
 	}
-	return 1;
+	return 0;
 }
 
 void repo_init_revisions(struct repository *r,
