@@ -1840,19 +1840,27 @@ static struct commit *get_commit(struct rev_info *revs, const char *arg_)
 	return (struct commit *)it;
 }
 
-static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
-			    int exclude_parent)
+static void add_parent(struct rev_info *revs, struct object *parent,
+		       const char *arg_, int flags)
 {
-	struct object *it;
-	struct commit *commit = get_commit(revs, arg_);
-	struct commit_list *parents;
-	int parent_number;
 	const char *arg = arg_;
 
 	if (*arg == '^') {
 		flags ^= UNINTERESTING | BOTTOM;
 		arg++;
 	}
+	parent->flags |= flags;
+	add_rev_cmdline(revs, parent, arg_, REV_CMD_PARENTS_ONLY, flags);
+	add_pending_object(revs, parent, arg);
+}
+
+static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
+			    int exclude_parent)
+{
+	struct commit *commit = get_commit(revs, arg_);
+	struct commit_list *parents;
+	int parent_number;
+
 	if (!commit)
 		return 0;
 	if (exclude_parent &&
@@ -1864,10 +1872,7 @@ static int add_parents_only(struct rev_info *revs, const char *arg_, int flags,
 		if (exclude_parent && parent_number != exclude_parent)
 			continue;
 
-		it = &parents->item->object;
-		it->flags |= flags;
-		add_rev_cmdline(revs, it, arg_, REV_CMD_PARENTS_ONLY, flags);
-		add_pending_object(revs, it, arg);
+		add_parent(revs, &parents->item->object, arg_, flags);
 	}
 	return 1;
 }
